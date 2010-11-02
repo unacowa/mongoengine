@@ -694,14 +694,21 @@ class QuerySetTest(unittest.TestCase):
     def test_update(self):
         """Ensure that atomic updates work properly.
         """
+        class Comment(EmbeddedDocument):
+            name = StringField()
+            comments = ListField(EmbeddedDocumentField('Comment'))
+
         class BlogPost(Document):
             title = StringField()
             hits = IntField()
             tags = ListField(StringField())
+            comments = ListField(EmbeddedDocumentField(Comment))
 
         BlogPost.drop_collection()
 
-        post = BlogPost(name="Test Post", hits=5, tags=['test'])
+        comm1 = Comment(name='comm1')
+        post = BlogPost(name="Test Post", hits=5,
+                        tags=['test'], comments=[comm1])
         post.save()
 
         BlogPost.objects.update(set__hits=10)
@@ -729,27 +736,100 @@ class QuerySetTest(unittest.TestCase):
         post.reload()
         self.assertEqual(post.tags, tags)
 
+        BlogPost.objects.update(set__tags__0='test-1')
+        post.reload()
+        self.assertEqual(post.tags[0], 'test-1')
+
         BlogPost.objects.update_one(add_to_set__tags='unique')
         BlogPost.objects.update_one(add_to_set__tags='unique')
         post.reload()
         self.assertEqual(post.tags.count('unique'), 1)
+
+        comm2 = Comment(name='comm2')
+        BlogPost.objects.update(push__comments=comm2)
+        post.reload()
+        self.assertTrue('comm2' in [c.name for c in post.comments])
+
+        comm3 = Comment(name='comm3')
+        comm4 = Comment(name='comm4')
+        BlogPost.objects.update_one(push_all__comments=[comm3, comm4])
+        post.reload()
+        self.assertTrue('comm3' in [c.name for c in post.comments])
+        self.assertTrue('comm4' in [c.name for c in post.comments])
+
+        comments = [c.name for c in post.comments[:-1]]
+        BlogPost.objects.update(pop__comments=1)
+        post.reload()
+        self.assertEqual([c.name for c in post.comments], comments)
+
+        BlogPost.objects.update(set__comments__0__name='comm1-1')
+        post.reload()
+        self.assertTrue(post.comments[0].name == 'comm1-1')
+
+        comm5 = Comment(name='comm5')
+        BlogPost.objects.update(set__comments__1__comments=[comm5])
+        post.reload()
+        self.assertTrue(post.comments[1].comments[0].name == 'comm5')
+
+        comm6 = Comment(name='comm6')
+        BlogPost.objects.update(push__comments__1__comments=comm6)
+        post.reload()
+        self.assertEqual([c.name for c in post.comments[1].comments],
+                         ['comm5', 'comm6'])
+
+        comm7 = Comment(name='comm7')
+        comm8 = Comment(name='comm8')
+        BlogPost.objects.update(push_all__comments__1__comments=[comm7, comm8])
+        post.reload()
+        self.assertEqual([c.name for c in post.comments[1].comments],
+                         ['comm5', 'comm6', 'comm7', 'comm8'])
         
         BlogPost.drop_collection()
 
     def test_update_pull(self):
         """Ensure that the 'pull' update operation works correctly.
         """
+        class Comment(EmbeddedDocument):
+            name = StringField()
+            comments = ListField(EmbeddedDocumentField('Comment'))
+        
         class BlogPost(Document):
             slug = StringField()
             tags = ListField(StringField())
+            comments = ListField(EmbeddedDocumentField(Comment))
 
-        post = BlogPost(slug="test", tags=['code', 'mongodb', 'code'])
+        comm1 = Comment(name='comm1')
+        comm2_1 = Comment(name='comm2-1')
+        comm2_2 = Comment(name='comm2-2')
+        comm2 = Comment(name='comm2', comments=[comm2_1, comm2_2])
+        post = BlogPost(slug="test",
+                        tags=['test', 'code', 'mongodb', 'code', 'mongodb'],
+                        comments=[comm1, comm2])
         post.save()
 
         BlogPost.objects(slug="test").update(pull__tags="code")
         post.reload()
         self.assertTrue('code' not in post.tags)
-        self.assertEqual(len(post.tags), 1)
+        self.assertEqual(len(post.tags), 3)
+
+        BlogPost.objects(slug="test").update(pull_all__tags=["mongodb", "test"])
+        post.reload()
+        self.assertTrue('mongodb' not in post.tags)
+        self.assertTrue('test' not in post.tags)
+        self.assertEqual(len(post.tags), 0)
+
+        BlogPost.objects(slug="test").update(pull__comments=comm1)
+        post.reload()
+        self.assertTrue(comm1 not in post.comments)
+        self.assertEqual(len(post.comments), 1)
+
+        BlogPost.objects(slug="test").update(pull__comments__0__comments=comm2_1)
+        post.reload()
+        self.assertTrue(comm2_1 not in post.comments[0].comments)
+        self.assertEqual(len(post.comments[0].comments), 1)
+        
+        BlogPost.drop_collection()
+        
 
     def test_order_by(self):
         """Ensure that QuerySets may be ordered.

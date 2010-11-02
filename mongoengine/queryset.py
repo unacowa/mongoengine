@@ -890,6 +890,9 @@ class QuerySet(object):
         mongo_update = {}
         for key, value in update.items():
             parts = key.split('__')
+            # indices = [(i, p) for i, p in enumerate(parts) if p.isdigit()]
+            indices = [p for p in parts if p.isdigit()]
+            # parts = [part for part in parts if not part.isdigit()]            
             # Check for an operator and transform to mongo-style if there is
             op = None
             if parts[0] in operators:
@@ -905,11 +908,15 @@ class QuerySet(object):
                         value = -value
                 elif op == 'add_to_set':
                     op = op.replace('_to_set', 'ToSet')
-
             if _doc_cls:
                 # Switch field names to proper names [set in Field(name='foo')]
                 fields = QuerySet._lookup_field(_doc_cls, parts)
-                parts = [field.db_field for field in fields]
+                parts = []
+                for field in fields:
+                    if field.db_field:
+                        parts.append(field.db_field)
+                    else:
+                        parts.append(indices.pop(0))
 
                 # Convert value to proper value
                 field = fields[-1]
@@ -917,8 +924,11 @@ class QuerySet(object):
                           'addToSet'):
                     value = field.prepare_query_value(op, value)
                 elif op in ('pushAll', 'pullAll'):
+                    # 'pushAll', 'pullALl' require a list of values
                     value = [field.prepare_query_value(op, v) for v in value]
 
+            for i, part in indices:
+                parts.insert(i, part)
             key = '.'.join(parts)
 
             if op:

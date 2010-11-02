@@ -272,7 +272,10 @@ class EmbeddedDocumentField(BaseField):
         return self.document_type._fields.get(member_name)
 
     def prepare_query_value(self, op, value):
-        return self.to_mongo(value)
+        if op == 'pop' and isinstance(value, int):
+            return value
+        else:
+            return self.to_mongo(value)
 
 
 class ListField(BaseField):
@@ -351,6 +354,8 @@ class ListField(BaseField):
         return self.field.prepare_query_value(op, value)
 
     def lookup_member(self, member_name):
+        if member_name.isdigit():
+            return self.field
         return self.field.lookup_member(member_name)
 
     def _set_owner_document(self, owner_document):
