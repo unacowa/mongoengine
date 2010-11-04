@@ -354,7 +354,7 @@ class ListField(BaseField):
         return self.field.prepare_query_value(op, value)
 
     def lookup_member(self, member_name):
-        if member_name.isdigit():
+        if member_name.isdigit() or member_name == '$':
             return self.field
         return self.field.lookup_member(member_name)
 

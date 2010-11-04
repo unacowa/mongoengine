@@ -766,6 +766,12 @@ class QuerySetTest(unittest.TestCase):
         post.reload()
         self.assertTrue(post.comments[0].name == 'comm1-1')
 
+        BlogPost.objects(comments__name='comm1-1')\
+            .update(**{'set__comments__$__name': 'comm1-1-1'})
+        post.reload()
+        self.assertTrue(post.comments[0].name == 'comm1-1-1')
+        self.assertTrue(post.comments[1].name == 'comm2')
+
         comm5 = Comment(name='comm5')
         BlogPost.objects.update(set__comments__1__comments=[comm5])
         post.reload()

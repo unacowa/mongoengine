@@ -891,7 +891,7 @@ class QuerySet(object):
         for key, value in update.items():
             parts = key.split('__')
             # indices = [(i, p) for i, p in enumerate(parts) if p.isdigit()]
-            indices = [p for p in parts if p.isdigit()]
+            indices = [p for p in parts if p.isdigit() or p == '$']
             # parts = [part for part in parts if not part.isdigit()]            
             # Check for an operator and transform to mongo-style if there is
             op = None
