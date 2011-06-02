@@ -337,6 +337,8 @@ class QuerySet(object):
             fields = QuerySet._lookup_field(doc_cls, parts)
             parts = [field.db_field for field in fields]
             key = '.'.join(parts)
+            if fields[-1].__class__._geo_index:
+                direction = pymongo.GEO2D
             index_list.append((key, direction))
 
             # Check if a list field is being used, don't use _types if it is
